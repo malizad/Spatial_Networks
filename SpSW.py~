@@ -1,0 +1,314 @@
+
+# coding: utf-8
+
+# In[1]:
+
+import matplotlib
+import pylab as pl
+import random as rd
+import numpy as np
+import networkx as nx
+
+
+# In[2]:
+
+def init(n,density):
+    global agents, pop
+    width = int(round((n/density)**0.5))
+    height = int(round((n/density)**0.5))
+    config = np.zeros([height, width])
+    pop = 0 #actual population size
+    for x in range(height):
+        for y in range(width):
+            if rd.random() < density:
+                config[x,y] = 1
+                pop += 1
+
+    # Populating the agents matrix with a random sequence of agents
+    seq = [x for x in range(pop)]
+    rd.shuffle(seq)
+    agents = np.zeros([height, width])
+    for r in range(height):
+        for t in range(width):
+            if agents[r,t] == 0:
+                agents[r,t] = -1
+    z = 0
+    for i in range(height):
+        for j in range(width):
+            if config[i,j] == 1:
+                agents[i,j]=seq[z]
+                z += 1
+
+
+# In[3]:
+
+def SpatialSW2(p,k,a):
+    global u,v,j,w,G,targets,nodes
+    G = nx.Graph()
+    nodes = list(range(pop)) # nodes are labeled 0 to n-1
+    # connect each node to k/2 neighbors
+    for j in range(1, k // 2+1):
+        targets = nodes[j:] + nodes[0:j] # first j nodes are now last in list
+        G.add_edges_from(zip(nodes,targets))
+    # rewire edges from each node
+    # loop over all nodes in order (label) and neighbors in order (distance)
+    # no self loops or multiple edges allowed
+    for j in range(1, k // 2+1): # outer loop is neighbors
+        targets = nodes[j:] + nodes[0:j] # first j nodes are now last in list
+        # inner loop in node order
+        for u,v in zip(nodes,targets): 
+            if rd.random() < p:
+                chosen = False
+                while chosen == False:
+                    w = rd.choice(nodes)
+                    while w == u or G.has_edge(u, w): # Enforce no self-loops or multiple edges
+                        w = rd.choice(nodes)
+                    u_coord = np.where(agents == u)
+                    w_coord = np.where(agents == w)
+                    d = (float(u_coord[0] - w_coord[0])**2 + (float(u_coord[1] - w_coord[1])**2))**0.5
+                    q = 0.5 * (d)**(-a)
+                    if rd.random() < q:
+                        G.remove_edge(u,v)  
+                        G.add_edge(u,w)
+                        chosen = True
+    return G
+
+
+# In[4]:
+
+def SpSW(k,a):
+    global u,v,j,w,G,targets,nodes
+    G = nx.Graph()
+    nodes = list(range(pop)) # nodes are labeled 0 to n-1
+    # connect each node to k/2 neighbors
+    for j in range(1, k // 2+1):
+        targets = nodes[j:] + nodes[0:j] # first j nodes are now last in list
+        G.add_edges_from(zip(nodes,targets))
+    # rewire edges from each node
+    # loop over all nodes in order (label) and neighbors in order (distance)
+    # no self loops or multiple edges allowed
+    for j in range(1, k // 2+1): # outer loop is neighbors
+        targets = nodes[j:] + nodes[0:j] # first j nodes are now last in list
+        # inner loop in node order
+        for u,v in zip(nodes,targets): 
+            u_coord = np.where(agents == u)
+            v_coord = np.where(agents == v)
+            d = (float(u_coord[0] - v_coord[0])**2 + (float(u_coord[1] - v_coord[1])**2))**0.5
+            p = (d)**(-a)
+            if rd.random() < p:
+                w = rd.choice(nodes)
+                while w == u or G.has_edge(u, w): # Enforce no self-loops or multiple edges
+                    w = rd.choice(nodes)
+                G.remove_edge(u,v)  
+                G.add_edge(u,w)
+    return G
+
+
+# In[4]:
+
+clust = list()
+path = list()
+ass = list()
+dens = list()
+mean_deg = list()
+std_deg = list()
+min_deg = list()
+max_deg = list()
+trans = list()
+n=1000
+k=20
+density=[0.3,0.5,0.8]
+alpha=[1,1.5,2]
+for d in density:
+    for a in alpha:
+        for i in range(25):
+            init(n,d)
+            network = SpSW(k,a)
+            clust.append(nx.average_clustering(network))
+            path.append(nx.average_shortest_path_length(network))
+            ass.append(nx.degree_pearson_correlation_coefficient(network))
+            no_edges = len(nx.edges(network))
+            all_edges = float((pop*(pop-1))/2)
+            dens.append(no_edges/all_edges)
+            deg = nx.degree(network).values()
+            mean_deg.append(np.mean(deg))
+            std_deg.append(np.std(deg))
+            min_deg.append(np.min(deg))
+            max_deg.append(np.max(deg))
+            trans.append(nx.transitivity(network))
+
+np.savetxt("clust.txt",clust,delimiter="\t")
+np.savetxt("path.txt",path,delimiter='\t')
+np.savetxt("ass.txt",ass,delimiter='\t')
+np.savetxt("dens.txt",dens,delimiter='\t')
+np.savetxt("mean_deg.txt",mean_deg,delimiter="\t")
+np.savetxt("std_deg.txt",std_deg,delimiter='\t')
+np.savetxt("min_deg.txt",min_deg,delimiter='\t')
+np.savetxt("max_deg.txt",max_deg,delimiter='\t')
+np.savetxt("trans.txt",trans,delimiter='\t')
+
+
+# In[68]:
+
+CC = np.mean(clust)
+print 'Clustering Coefficient = ', CC
+APL = np.mean(path)
+print 'Average Path Length = ', APL
+AS = np.mean(ass)
+print 'Assortativity = ', AS
+MD = np.mean(dens)
+print 'Density = ', MD
+MDe = np.mean(mean_deg)
+print 'Mean Degree = ', MDe
+Tr = np.mean(trans)
+print 'Transitivity = ', Tr
+MaxD = np.mean(max_deg)
+print 'Max Degree = ', MaxD
+MinD = np.mean(min_deg)
+print 'Min Degree = ', MinD
+StdD = np.mean(std_deg)
+print 'Std Degree = ', StdD
+
+
+# In[6]:
+
+n=1000
+k=20
+pr = [0.01,0.05,0.1]
+WS_d = list()
+WS_hist_keys = list()
+for p in pr:
+    network = nx.watts_strogatz_graph(n,k,p)
+    deg = nx.degree(network).values()
+    WS_d.append(deg)
+    WS_bn = np.arange(16,25,1)
+    lWS_bn = len(WS_bn)
+    WS_bnR = WS_bn[:lWS_bn-1]
+    WS_hist = histogram(deg,bins=WS_bn)
+    WS_hist_keys.append(WS_hist[0])
+
+
+# In[7]:
+
+n=1000
+density=0.8
+k=20
+alpha=[1,1.5,2]
+d_hist_keys = list()
+d_hist_values = list()
+deg_list = list()
+for a in alpha:
+    init(n,density)
+    network = SpSW(k,a)
+    deg = nx.degree(network).values()
+    deg_list.append(deg)
+    bn = np.arange(16,25,1)
+    lbn = len(bn)
+    bbn = bn[:lbn-1]
+    d_hist = histogram(deg,bins=bn)
+    d_hist_keys.append(d_hist[0])
+
+
+# In[8]:
+
+plot(WS_bnR,WS_hist_keys[0],'k-s',label='WS p=0.01')
+plot(WS_bnR,WS_hist_keys[1],'k-o',label='WS p=0.05')
+plot(WS_bnR,WS_hist_keys[2],'k-^',label='WS p=0.1')
+plot(bbn,d_hist_keys[0],'r',label='SWS a=1')
+plot(bbn,d_hist_keys[1],'b--',label='SWS a=1.5')
+plot(bbn,d_hist_keys[2],'g-*',label='SWS a=2')
+#yscale('log')
+xlabel('k',fontsize=18)
+ylabel('Frequency of k',fontsize=18)
+legend(loc='upper right')
+
+
+# In[33]:
+
+k_list=[10, 11, 12, 15, 17, 20, 25, 30]
+freq_WS1=list()
+for k in k_list:
+    n = 0
+    for i in range(999):
+        if WS_d[0][i] >= k:
+            n += 1
+    freq_WS1.append(n / float(1000))
+
+
+# In[34]:
+
+k_list=[10, 11, 12, 15, 17, 20, 25, 30]
+freq_WS2=list()
+for k in k_list:
+    n = 0
+    for i in range(999):
+        if WS_d[1][i] >= k:
+            n += 1
+    freq_WS2.append(n / float(1000))
+
+
+# In[35]:
+
+k_list=[10, 11, 12, 15, 17, 20, 25, 30]
+freq_WS3=list()
+for k in k_list:
+    n = 0
+    for i in range(999):
+        if WS_d[2][i] >= k:
+            n += 1
+    freq_WS3.append(n / float(1000))
+
+
+# In[36]:
+
+k_list=[10, 11, 12, 15, 17, 20, 25, 30]
+freq_SWS1=list()
+for k in k_list:
+    n = 0
+    for i in range(len(deg_list[0])):
+        if deg_list[0][i] >= k:
+            n += 1
+    freq_SWS1.append(n / float(len(deg_list[0])))
+
+
+# In[37]:
+
+k_list=[10, 11, 12, 15, 17, 20, 25, 30]
+freq_SWS2=list()
+for k in k_list:
+    n = 0
+    for i in range(len(deg_list[1])):
+        if deg_list[1][i] >= k:
+            n += 1
+    freq_SWS2.append(n / float(len(deg_list[1])))
+
+
+# In[38]:
+
+k_list=[10, 11, 12, 15, 17, 20, 25, 30]
+freq_SWS3=list()
+for k in k_list:
+    n = 0
+    for i in range(len(deg_list[2])):
+        if deg_list[2][i] >= k:
+            n += 1
+    freq_SWS3.append(n / float(len(deg_list[2])))
+
+
+# In[40]:
+
+plt.plot(k_list,freq_WS1,'k',label='WS p=0.01')
+plt.plot(k_list,freq_WS2,'k-o',label='WS p=0.02')
+plt.plot(k_list,freq_WS3,'k-s',label='WS p=0.05')
+plt.plot(k_list,freq_SWS1,'r-+',label='SWS a=1')
+plt.plot(k_list,freq_SWS2,'b--',label='SWS a=1.5')
+plt.plot(k_list,freq_SWS3,'g-^',label='SWS a=2')
+plt.xlabel('k',fontsize=18)
+plt.ylabel('Pr(X >= k)',fontsize=18)
+legend(loc='upper right')
+
+
+# In[ ]:
+
+
+

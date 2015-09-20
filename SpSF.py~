@@ -1,0 +1,319 @@
+
+# coding: utf-8
+
+# In[10]:
+
+import matplotlib
+import pylab as pl
+import random as rd
+import numpy as np
+import networkx as nx
+import scipy as sp
+from scipy import stats
+from collections import Counter
+from Plfit2 import plfit
+from __future__ import division
+
+
+# In[2]:
+
+# n = population size
+# density = density of the grid cell
+def init(n,density):
+    global agents, pop
+    width = int(round((n/density)**0.5))
+    height = int(round((n/density)**0.5))
+    config = np.zeros([height, width])
+    pop = 0 #actual population size
+    for x in range(height):
+        for y in range(width):
+            if rd.random() < density:
+                config[x,y] = 1
+                pop += 1
+
+    # Populating the agents matrix with a random sequence of agents
+    seq = [x for x in range(pop)]
+    rd.shuffle(seq)
+    agents = np.zeros([height, width])
+    for r in range(height):
+        for t in range(width):
+            if agents[r,t] == 0:
+                agents[r,t] = -1
+    z = 0
+    for i in range(height):
+        for j in range(width):
+            if config[i,j] == 1:
+                agents[i,j]=seq[z]
+                z += 1
+
+
+# In[3]:
+
+def Select(net,new,m,alpha):
+    deg = nx.degree(net).values()
+    new_coord = np.where(agents == new)
+    nodeJ_coord = list()
+    targets = list()
+    exponent = alpha * (-1)
+    while len(targets) < m:
+        nodeJ = rd.randint(0,len(deg)-1)
+        while nodeJ in targets:
+            nodeJ = rd.randint(0,len(deg)-1)
+        nodeJ_coord = np.where(agents == nodeJ)
+        d = (float(nodeJ_coord[0] - new_coord[0])**2 + (float(nodeJ_coord[1] - new_coord[1])**2))**0.5
+        d_alpha = d**(exponent)
+        ConnPr = d_alpha * deg[nodeJ]
+        chance = rd.random()
+        if (ConnPr <= 1 and ConnPr > chance):
+            targets.append(nodeJ)
+    return targets
+
+
+# In[4]:
+
+def SpatialNetSF(m,alpha):
+    network = nx.empty_graph(m)
+    targets = list(range(m))
+    source = m
+    while source < pop-1:
+        network.add_edges_from(zip([source]*m,targets))
+        source += 1
+        targets = Select(network,source,m,alpha)
+    return network
+
+
+# In[6]:
+
+clust = list()
+path = list()
+ass = list()
+dens = list()
+mean_deg = list()
+std_deg = list()
+min_deg = list()
+max_deg = list()
+trans = list()
+n=1000
+density=[0.3,0.5,0.8]
+alpha=[1,1.5,2]
+m_list=[1,3,5]
+for d in density:
+    for m in m_list:
+        for a in alpha:
+            for i in range(25):
+                init(n,d)
+                network = SpatialNetSF(m,a)
+                clust.append(nx.average_clustering(network))
+                path.append(nx.average_shortest_path_length(network))
+                ass.append(nx.degree_pearson_correlation_coefficient(network))
+                no_edges = len(nx.edges(network))
+                all_edges = float((pop*(pop-1))/2)
+                dens.append(no_edges/all_edges)
+                deg = nx.degree(network).values()
+                mean_deg.append(np.mean(deg))
+                std_deg.append(np.std(deg))
+                min_deg.append(np.min(deg))
+                max_deg.append(np.max(deg))
+                trans.append(nx.transitivity(network))
+
+np.savetxt("clust.txt",clust,delimiter="\t")
+np.savetxt("path.txt",path,delimiter='\t')
+np.savetxt("ass.txt",ass,delimiter='\t')
+np.savetxt("dens.txt",dens,delimiter='\t')
+np.savetxt("mean_deg.txt",mean_deg,delimiter="\t")
+np.savetxt("std_deg.txt",std_deg,delimiter='\t')
+np.savetxt("min_deg.txt",min_deg,delimiter='\t')
+np.savetxt("max_deg.txt",max_deg,delimiter='\t')
+np.savetxt("trans.txt",trans,delimiter='\t')
+
+
+# In[23]:
+
+CC = np.mean(clust)
+print 'Clustering Coefficient = ', CC
+APL = np.mean(path)
+print 'Average Path Length = ', APL
+AS = np.mean(ass)
+print 'Assortativity = ', AS
+MD = np.mean(dens)
+print 'Density = ', MD
+MDe = np.mean(mean_deg)
+print 'Mean Degree = ', MDe
+Tr = np.mean(trans)
+print 'Transitivity = ', Tr
+
+
+# In[20]:
+
+n=1000
+density=0.8
+alpha=[1,1.5,2]
+m=5
+d_hist_keys = list()
+d_hist_values = list()
+deg_list = list()
+for a in alpha:
+    init(n,density)
+    network = SpatialNetSF(m,a)
+    deg = nx.degree(network).values()
+    deg_list.append(deg)
+    bn = np.arange(m,80,2)
+    lbn = len(bn)
+    bbn = bn[:lbn-1]
+    d_hist = histogram(deg,bins=bn)
+    d_hist_keys.append(d_hist[0])
+    d_hist_values.append(d_hist[1])
+
+
+# In[21]:
+
+network = nx.barabasi_albert_graph(1000, 5)
+deg = nx.degree(network).values()
+print (max(deg))
+
+
+# In[22]:
+
+myfit = plfit(N_deg)
+
+
+# In[23]:
+
+bb = np.arange(m,150,5)
+lbb = len(bb)
+bbb = bb[:lbb-1]
+ba_hist = histogram(deg,bins=bb)
+
+
+# In[24]:
+
+plot(bbn,d_hist_keys[0],'r+',label='alpha=1')
+plot(bbn,d_hist_keys[1],'bx',label='alpha=1.5')
+plot(bbn,d_hist_keys[2],'g^',label='alpha=2')
+plot(bbb,ba_hist[0],'ko',label='BA')
+#xscale('log')
+#yscale('log')
+xlabel('k',fontsize=18)
+ylabel('Frequency of k',fontsize=18)
+legend(loc='upper right')
+
+
+# In[9]:
+
+def drop_zeros(a_list):
+    return [i for i in a_list if i>0]
+
+def log_binning(counter_dict,bin_count):
+
+    max_x = log10(max(counter_dict.keys()))
+    max_y = log10(max(counter_dict.values()))
+    max_base = max([max_x,max_y])
+
+    min_x = log10(min(drop_zeros(counter_dict.keys())))
+
+    bins = np.logspace(min_x,max_base,num=bin_count)
+
+    # Based off of: http://stackoverflow.com/questions/6163334/binning-data-in-python-with-scipy-numpy
+    bin_means_y = (np.histogram(counter_dict.keys(),bins,weights=counter_dict.values())[0] / np.histogram(counter_dict.keys(),bins)[0])
+    bin_means_x = (np.histogram(counter_dict.keys(),bins,weights=counter_dict.keys())[0] / np.histogram(counter_dict.keys(),bins)[0])
+
+    return bin_means_x,bin_means_y
+
+
+# In[10]:
+
+ba_c2 = dict(Counter(deg))
+ba_x,ba_y = log_binning(ba_c2,10)
+plt.xscale('log')
+plt.yscale('log')
+plt.scatter(ba_x,ba_y,c='r',marker='s',s=50)
+plt.show()
+
+
+# In[13]:
+
+"""
+Chi Square Test for goodness of Fit fot powerlaw distribution
+"""
+data = deg_list[0]
+plshape, plloc, plscale = stats.powerlaw.fit(data)
+quantiles = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
+crit = stats.powerlaw.ppf(quantiles, plshape, loc=plloc, scale=plscale)
+# Obtaining observed frequencies (Oi)
+freqcount = np.histogram(data, bins=crit)[0]
+# Calculating Expected Frequencies (Ei)
+plprob = np.diff(stats.powerlaw.cdf(crit, plshape, loc=plloc, scale=plscale))
+exp_freq = plprob*1000
+plch, plpval = stats.chisquare(freqcount, f_exp=exp_freq)
+print 'loc = %6.1f  chi2 = %6.1f pvalue = %6.4f' % (plloc, plch, plpval)
+
+
+# In[14]:
+
+# CCDF BA
+k_list=[5,10,15,20,25,30,40]
+freq_BA=list()
+for k in k_list:
+    n = 0
+    for i in range(len(deg)):
+        if deg[i] >= k:
+            n += 1
+    freq_BA.append(n / float(len(deg)))
+
+
+# In[15]:
+
+# CCDF alpha=1
+k_list=[5,10,15,20,25,30,40]
+freq_1=list()
+for k in k_list:
+    n = 0
+    for i in range(len(deg_list[0])):
+        if deg_list[0][i] >= k:
+            n += 1
+    freq_1.append(n / float(len(deg)))
+
+
+# In[16]:
+
+# CCDF alpha=1.5
+k_list=[5,10,15,20,25,30,40]
+freq_1_5=list()
+for k in k_list:
+    n = 0
+    for i in range(len(deg_list[1])):
+        if deg_list[1][i] >= k:
+            n += 1
+    freq_1_5.append(n / float(len(deg)))
+
+
+# In[17]:
+
+# CCDF alpha=2
+k_list=[5,10,15,20,25,30,40]
+freq_2=list()
+for k in k_list:
+    n = 0
+    for i in range(len(deg_list[2])):
+        if deg_list[2][i] >= k:
+            n += 1
+    freq_2.append(n / float(len(deg)))
+
+
+# In[19]:
+
+plot(k_list,freq_BA,'k-',label='BA')
+plot(k_list,freq_1,'r--',label='alpha=1')
+plot(k_list,freq_1_5,'b-+',label='alpha=1.5')
+plot(k_list,freq_2,'g-^',label='alpha=2')
+xscale('log')
+yscale('log')
+xlabel('k',fontsize=18)
+ylabel('P(X >= k)',fontsize=18)
+legend(loc='upper right')
+
+
+# In[ ]:
+
+
+

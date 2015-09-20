@@ -1,0 +1,339 @@
+
+# coding: utf-8
+
+# In[1]:
+
+import matplotlib
+import pylab as pl
+import random as rd
+import numpy as np
+import networkx as nx
+from scipy import stats
+import scipy as sp
+
+
+# In[2]:
+
+def init(n,density):
+    global agents, pop
+    width = int(round((n/density)**0.5))
+    height = int(round((n/density)**0.5))
+    config = np.zeros([height, width])
+    pop = 0 #actual population size
+    for x in range(height):
+        for y in range(width):
+            if rd.random() < density:
+                config[x,y] = 1
+                pop += 1
+
+    # Populating the agents matrix with a random sequence of agents
+    seq = [x for x in range(pop)]
+    rd.shuffle(seq)
+    agents = np.zeros([height, width])
+    for r in range(height):
+        for t in range(width):
+            if agents[r,t] == 0:
+                agents[r,t] = -1
+    z = 0
+    for i in range(height):
+        for j in range(width):
+            if config[i,j] == 1:
+                agents[i,j]=seq[z]
+                z += 1
+
+
+# In[3]:
+
+def Pr_Con(a,c,node1, node2):
+    coord1 = np.where(agents == node1)
+    coord2 = np.where(agents == node2)
+    dist = sqrt (int(coord1[0] - coord2[0])**2 + (int(coord1[1] - coord2[1])**2))
+    pr = c * (dist**(-a))
+    return pr
+
+
+# In[4]:
+
+def SpRd(c,a):
+    network = nx.Graph()
+    for node in range(1,pop):
+        network.add_node(node)
+    for node1 in range(1,pop):
+        for node2 in range(node1 + 1,pop):
+            chance = rd.random()
+            Pr_Connection = Pr_Con(a,c,node1,node2)
+            if chance < Pr_Connection:
+                network.add_edge(node1,node2)
+    return network
+
+
+# In[5]:
+
+clust = list()
+path = list()
+ass = list()
+dens = list()
+mean_deg = list()
+std_deg = list()
+min_deg = list()
+max_deg = list()
+trans = list()
+n=1000
+c=0.5
+density=[0.8]
+alpha=[3]
+for d in density:
+    for a in alpha:
+        for i in range(25):
+            init(n,d)
+            network = SpRd(c,a)
+            clust.append(nx.average_clustering(network))
+            #path.append(nx.average_shortest_path_length(network))
+            ass.append(nx.degree_pearson_correlation_coefficient(network))
+            no_edges = len(nx.edges(network))
+            all_edges = float((pop*(pop-1))/2)
+            dens.append(no_edges/all_edges)
+            deg = nx.degree(network).values()
+            mean_deg.append(np.mean(deg))
+            std_deg.append(np.std(deg))
+            min_deg.append(np.min(deg))
+            max_deg.append(np.max(deg))
+            trans.append(nx.transitivity(network))
+
+#np.savetxt("clust.txt",clust,delimiter="\t")
+#np.savetxt("path.txt",path,delimiter='\t')
+#np.savetxt("ass.txt",ass,delimiter='\t')
+#np.savetxt("dens.txt",dens,delimiter='\t')
+#np.savetxt("mean_deg.txt",mean_deg,delimiter="\t")
+#np.savetxt("std_deg.txt",std_deg,delimiter='\t')
+#np.savetxt("min_deg.txt",min_deg,delimiter='\t')
+#np.savetxt("max_deg.txt",max_deg,delimiter='\t')
+#np.savetxt("trans.txt",trans,delimiter='\t')
+
+
+# In[6]:
+
+CC = np.mean(clust)
+print 'Clustering Coefficient = ', CC
+APL = np.mean(path)
+print 'Average Path Length = ', APL
+AS = np.mean(ass)
+print 'Assortativity = ', AS
+MD = np.mean(dens)
+print 'Density = ', MD
+MDe = np.mean(mean_deg)
+print 'Mean Degree = ', MDe
+Tr = np.mean(trans)
+print 'Transitivity = ', Tr
+MaxD = np.mean(max_deg)
+print 'Max Degree = ', MaxD
+MinD = np.mean(min_deg)
+print 'Min Degree = ', MinD
+StdD = np.mean(std_deg)
+print 'Std Degree = ', StdD
+
+
+# In[5]:
+
+n=1000
+density=0.8
+c=0.5
+alpha=[1,1.5,2]
+d_hist_keys = list()
+d_hist_values = list()
+deg_list = list()
+for a in alpha:
+    init(n,density)
+    network = SpRd(c,a)
+    deg = nx.degree(network).values()
+    deg_list.append(deg)
+    bn = np.arange(0,60,1)
+    lbn = len(bn)
+    bbn = bn[:lbn-1]
+    d_hist = histogram(deg,bins=bn)
+    d_hist_keys.append(d_hist[0])
+
+
+# In[6]:
+
+n=1000
+pr = [0.01,0.02,0.05]
+ER_d = list()
+ER_hist_keys = list()
+for p in pr:
+    network = nx.erdos_renyi_graph(n,p)
+    deg = nx.degree(network).values()
+    ER_d.append(deg)
+    ER_bn = np.arange(0,80,2)
+    lER_bn = len(ER_bn)
+    ER_bnR = ER_bn[:lER_bn-1]
+    ER_hist = histogram(deg,bins=ER_bn)
+    ER_hist_keys.append(ER_hist[0])
+
+
+# In[7]:
+
+plot(ER_bnR,ER_hist_keys[0],'k-s',label='WS p=0.01')
+plot(ER_bnR,ER_hist_keys[1],'k-o',label='WS p=0.05')
+plot(ER_bnR,ER_hist_keys[2],'k-^',label='WS p=0.1')
+plot(bbn,d_hist_keys[0],'r',label='SWS a=1')
+plot(bbn,d_hist_keys[1],'b--',label='SWS a=1.5')
+plot(bbn,d_hist_keys[2],'g-*',label='SWS a=2')
+#yscale('log')
+xlabel('k',fontsize=18)
+ylabel('Frequency of k',fontsize=18)
+legend(loc='upper right')
+
+
+# In[40]:
+
+k_list=[1,2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 17, 20, 25, 30, 35,50,70,80]
+freq_ER1=list()
+for k in k_list:
+    n = 0
+    for i in range(999):
+        if ER_d[0][i] >= k:
+            n += 1
+    freq_ER1.append(n / float(1000))
+
+
+# In[41]:
+
+k_list=[1,2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 17, 20, 25, 30, 35,50,70,80]
+freq_ER2=list()
+for k in k_list:
+    n = 0
+    for i in range(999):
+        if ER_d[1][i] >= k:
+            n += 1
+    freq_ER2.append(n / float(1000))
+
+
+# In[42]:
+
+k_list=[1,2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 17, 20, 25, 30, 35,50,70,80]
+freq_ER3=list()
+for k in k_list:
+    n = 0
+    for i in range(999):
+        if ER_d[2][i] >= k:
+            n += 1
+    freq_ER3.append(n / float(1000))
+
+
+# In[43]:
+
+k_list=[1,2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 17, 20, 25, 30, 35,50,70,80]
+freq_SER1=list()
+for k in k_list:
+    n = 0
+    for i in range(len(deg_list[0])):
+        if deg_list[0][i] >= k:
+            n += 1
+    freq_SER1.append(n / float(len(deg_list[0])))
+
+
+# In[44]:
+
+k_list=[1,2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 17, 20, 25, 30, 35,50,70,80]
+freq_SER2=list()
+for k in k_list:
+    n = 0
+    for i in range(len(deg_list[1])):
+        if deg_list[1][i] >= k:
+            n += 1
+    freq_SER2.append(n / float(len(deg_list[1])))
+
+
+# In[45]:
+
+k_list=[1,2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 17, 20, 25, 30, 35,50,70,80]
+freq_SER3=list()
+for k in k_list:
+    n = 0
+    for i in range(len(deg_list[2])):
+        if deg_list[2][i] >= k:
+            n += 1
+    freq_SER3.append(n / float(len(deg_list[2])))
+
+
+# In[48]:
+
+plt.plot(k_list,freq_ER1,'k',label='ER p=0.01')
+plt.plot(k_list,freq_ER2,'k-o',label='ER p=0.02')
+plt.plot(k_list,freq_ER3,'k-s',label='ER p=0.05')
+plt.plot(k_list,freq_SER1,'r-+',label='SER a=1')
+plt.plot(k_list,freq_SER2,'b--',label='SER a=1.5')
+plt.plot(k_list,freq_SER3,'g-^',label='SER a=2')
+plt.xlabel('k',fontsize=18)
+plt.ylabel('Pr(X >= k)',fontsize=18)
+legend(loc='upper right')
+
+
+# In[84]:
+
+# Fit and test against Normal Distribution
+m, s = stats.norm.fit(deg)
+d, pv = stats.kstest(deg, 'norm',(m,s))
+print m, s, d, pv
+
+
+# In[88]:
+
+"""
+Comparing upper tail of sample against some distributions
+"""
+# 1. Normal
+m = np.mean(deg)
+s = np.std(deg)
+norm_deg=list()
+for e in range(len(deg)-1):
+    norm_deg.append(float(deg[e]-m)/s)
+crit01, crit05, crit10 = stats.norm.ppf([1-0.01, 1-0.05, 1-0.10])
+print 'critical values from ppf at 1%%, 5%% and 10%% %8.4f %8.4f %8.4f'% (crit01, crit05, crit10)
+freq01 = np.sum(norm_deg>crit01) / float(pop) * 100
+freq05 = np.sum(norm_deg>crit05) / float(pop) * 100
+freq10 = np.sum(norm_deg>crit10) / float(pop) * 100
+print 'sample %%-frequency at 1%%, 5%% and 10%% tail %8.4f %8.4f %8.4f'% (freq01, freq05, freq10)
+
+
+# In[92]:
+
+# 2. Exponential
+a, b = stats.expon.fit(deg)
+crit01, crit05, crit10 = stats.expon(a,b).ppf([1-0.01, 1-0.05, 1-0.10])
+print 'critical values from ppf at 1%%, 5%% and 10%% %8.4f %8.4f %8.4f'% (crit01, crit05, crit10)
+freq01 = np.sum(deg>crit01) / float(pop) * 100
+freq05 = np.sum(deg>crit05) / float(pop) * 100
+freq10 = np.sum(deg>crit10) / float(pop) * 100
+print 'sample %%-frequency at 1%%, 5%% and 10%% tail %8.4f %8.4f %8.4f'% (freq01, freq05, freq10)
+
+
+# In[126]:
+
+freq
+
+
+# In[41]:
+
+# Fit and test against Lognormal Distribution
+# sh: shape parameter
+# l: location parameter
+# sc: scale parameter
+sh, l, sc = stats.lognorm.fit(deg)
+d, pv = stats.kstest(deg, 'lognorm',(sh,l,sc))
+print d, pv
+
+
+# In[42]:
+
+# Fit and test against power law
+sh, l, sc = stats.powerlaw.fit(deg)
+d, pv = stats.kstest(deg, 'powerlaw',(sh,l,sc))
+print d, pv
+
+
+# In[ ]:
+
+
+
